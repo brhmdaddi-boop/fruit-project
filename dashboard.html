@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - إدارة المنتجات</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f5f7; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1, h2 { color: #172b4d; border-bottom: 2px solid #f4f5f7; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border: 1px solid #dfe1e6; text-align: right; }
+        th { background-color: #f4f5f7; }
+        form input { padding: 10px; border: 2px solid #dfe1e6; border-radius: 4px; font-size: 16px; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+        button { padding: 10px 15px; background-color: #0052cc; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button:hover { background-color: #0065ff; }
+        .btn-delete { background-color: #de350b; }
+        .btn-delete:hover { background-color: #ff5630; }
+        .pricing-fields { display: flex; gap: 10px; align-items: center; margin-bottom: 5px; }
+        .pricing-fields input { width: 50%; }
+        #add-price-btn { background-color: #00875a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>لوحة التحكم</h1>
+        
+        <h2>إضافة منتج جديد</h2>
+        <form id="add-product-form">
+            <input type="text" id="name" placeholder="اسم المنتج" required>
+            <input type="text" id="description" placeholder="الوصف (اختياري)">
+            
+            <label for="image">صورة المنتج:</label>
+            <input type="file" id="image" accept="image/*" required>
+
+            <div id="pricing-container">
+                <label>وحدات التسعير:</label>
+                <div class="pricing-fields">
+                    <input type="text" class="unit-input" placeholder="الوحدة (مثال: كيلو)" required>
+                    <input type="number" class="price-input" placeholder="السعر" step="0.01" required>
+                </div>
+            </div>
+            <button type="button" id="add-price-btn">إضافة وحدة تسعير أخرى</button>
+            <hr>
+            <button type="submit" style="width: 100%; margin-top: 10px;">حفظ المنتج</button>
+        </form>
+
+        <h2>قائمة المنتجات الحالية</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>صورة</th>
+                    <th>اسم المنتج</th>
+                    <th>الأسعار</th>
+                    <th>إجراءات</th>
+                </tr>
+            </thead>
+            <tbody id="products-table-body"></tbody>
+        </table>
+    </div>
+
+     <script>
+        const productsTableBody = document.getElementById('products-table-body');
+        const addProductForm = document.getElementById('add-product-form');
+        const pricingContainer = document.getElementById('pricing-container');
+        const addPriceBtn = document.getElementById('add-price-btn');
+
+        // --- عرض المنتجات ---
+        const fetchProducts = async () => {
+            try {
+                const response = await fetch('http://localhost:3000/api/products');
+                const products = await response.json();
+                productsTableBody.innerHTML = '';
+                products.forEach(product => {
+                    const prices = product.pricing.map(p => `${p.price} د.ج / ${p.unit}`).join('<br>');
+                    const row = `<tr>
+                        <td><img src="http://localhost:3000${product.image}" alt="${product.name}" width="50"></td>
+                        <td>${product.name}</td>
+                        <td>${prices}</td>
+                        <td><button class="btn-delete" onclick="deleteProduct('${product._id}')">حذف</button></td>
+                    </tr>`;
+                    productsTableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('فشل في جلب المنتجات:', error);
+            }
+        };
+
+        // --- إضافة حقول تسعير جديدة ---
+        addPriceBtn.addEventListener('click', () => {
+            const newPricingFields = document.createElement('div');
+            newPricingFields.className = 'pricing-fields';
+            newPricingFields.innerHTML = `
+                <input type="text" class="unit-input" placeholder="الوحدة" required>
+                <input type="number" class="price-input" placeholder="السعر" step="0.01" required>
+            `;
+            pricingContainer.appendChild(newPricingFields);
+        });
+
+        // --- حفظ المنتج الجديد ---
+        addProductForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            // 1. رفع الصورة أولاً
+            const imageFile = document.getElementById('image').files[0];
+            const formData = new FormData();
+            formData.append('image', imageFile);
+
+            let imageUrl = '';
+            try {
+                const uploadRes = await fetch('http://localhost:3000/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (!uploadRes.ok) throw new Error('فشل رفع الصورة');
+                imageUrl = await uploadRes.text();
+            } catch (error) {
+                console.error(error);
+                alert('حدث خطأ أثناء رفع الصورة.');
+                return;
+            }
+
+            // 2. تجميع بيانات التسعير
+            const pricing = [];
+            const pricingFields = document.querySelectorAll('.pricing-fields');
+            pricingFields.forEach(field => {
+                const unit = field.querySelector('.unit-input').value;
+                const price = field.querySelector('.price-input').value;
+                if (unit && price) {
+                    pricing.push({ unit, price });
+                }
+            });
+
+            // 3. تجميع بيانات المنتج الكاملة
+            const productData = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                image: imageUrl,
+                pricing: pricing
+            };
+
+            // 4. إرسال المنتج إلى الخادم
+            try {
+                const productRes = await fetch('http://localhost:3000/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(productData)
+                });
+
+                if (productRes.ok) {
+                    addProductForm.reset();
+                    pricingContainer.innerHTML = `
+                        <label>وحدات التسعير:</label>
+                        <div class="pricing-fields">
+                            <input type="text" class="unit-input" placeholder="الوحدة (مثال: كيلو)" required>
+                            <input type="number" class="price-input" placeholder="السعر" step="0.01" required>
+                        </div>
+                    `;
+                    fetchProducts();
+                } else {
+                    alert('فشل في إضافة المنتج');
+                }
+            } catch (error) {
+                console.error('فشل في إضافة المنتج:', error);
+            }
+        });
+        
+        // --- حذف المنتج ---
+        const deleteProduct = async (id) => {
+            if (confirm('هل أنت متأكد أنك تريد حذف هذا المنتج؟')) {
+                try {
+                    const response = await fetch(`http://localhost:3000/api/products/${id}`, {
+                        method: 'DELETE',
+                    });
+                    if (response.ok) fetchProducts();
+                    else alert('فشل في حذف المنتج');
+                } catch (error) {
+                    console.error('فشل في حذف المنتج:', error);
+                }
+            }
+        };
+
+        // --- جلب المنتجات عند تحميل الصفحة ---
+        fetchProducts();
+    </script>
+</body>
+</html>

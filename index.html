@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متجر الفواكه</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background-color: #f4f4f4; }
+        h1, h2 { color: #333; }
+        ul { list-style-type: none; padding: 0; }
+        li { display: flex; justify-content: space-between; align-items: center; background: #fff; margin-bottom: 10px; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .product-info { flex-grow: 1; }
+        .actions button { margin-left: 10px; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; }
+        .edit-btn { background-color: #ffc107; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        form { margin-top: 20px; }
+        input, form button { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
+        form button { background-color: #28a745; color: white; cursor: pointer; border: none; }
+    </style>
+</head>
+<body>
+
+    <h1>متجر الفواكه</h1>
+
+    <h2>إضافة منتج جديد</h2>
+    <form id="addProductForm">
+        <input type="text" id="name" placeholder="اسم المنتج" required>
+        <input type="number" id="price" placeholder="السعر" step="0.01" required>
+        <input type="text" id="description" placeholder="الوصف">
+        <button type="submit">إضافة المنتج</button>
+    </form>
+
+    <h2>المنتجات المتوفرة</h2>
+    <ul id="productsList">
+        </ul>
+
+    <script>
+        const productsList = document.getElementById('productsList');
+        const addProductForm = document.getElementById('addProductForm');
+
+        // --- دالة لعرض المنتجات ---
+        async function fetchProducts() {
+            productsList.innerHTML = '';
+            const response = await fetch('/products');
+            const products = await response.json();
+
+            products.forEach(product => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="product-info">
+                        <strong>${product.name}</strong> - ${product.price} ريال
+                        <br>
+                        <small>${product.description || 'لا يوجد وصف'}</small>
+                    </div>
+                    <div class="actions">
+                        <button class="edit-btn" onclick="editProduct('${product._id}', '${product.name}', ${product.price})">تعديل</button>
+                        <button class="delete-btn" onclick="deleteProduct('${product._id}')">حذف</button>
+                    </div>
+                `;
+                productsList.appendChild(li);
+            });
+        }
+
+        // --- دالة لحذف منتج ---
+        async function deleteProduct(id) {
+            if (!confirm('هل أنت متأكد من أنك تريد حذف هذا المنتج؟')) {
+                return;
+            }
+            await fetch(`/products/${id}`, {
+                method: 'DELETE'
+            });
+            fetchProducts(); // إعادة تحميل القائمة
+        }
+        
+        // --- دالة لتعديل منتج ---
+        async function editProduct(id, currentName, currentPrice) {
+            const newPrice = prompt(`أدخل السعر الجديد للمنتج: ${currentName}`, currentPrice);
+            if (newPrice === null || isNaN(newPrice) || newPrice === '') {
+                return; // إلغاء التعديل إذا لم يدخل المستخدم قيمة صالحة
+            }
+
+            await fetch(`/products/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ price: parseFloat(newPrice) })
+            });
+            fetchProducts(); // إعادة تحميل القائمة
+        }
+
+        // --- الاستماع لحدث إضافة منتج جديد ---
+        addProductForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const name = document.getElementById('name').value;
+            const price = document.getElementById('price').value;
+            const description = document.getElementById('description').value;
+
+            await fetch('/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, price, description })
+            });
+
+            addProductForm.reset();
+            fetchProducts();
+        });
+
+        // --- تحميل المنتجات عند فتح الصفحة ---
+        fetchProducts();
+    </script>
+
+</body>
+</html>
