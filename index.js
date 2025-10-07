@@ -24,7 +24,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // Database Connection
-const dbURI = "mongodb+srv://brhmdaddi:weARE2006@clusterfruit.qnw1179.mongodb.net/?retryWrites=true&w=majority&appName=Clusterfruit";
+const dbURI = "const dbURI = process.env.DB_URI;";
 
 mongoose.connect(dbURI)
     .then(() => {
